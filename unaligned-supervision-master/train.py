@@ -25,22 +25,25 @@ ex = Experiment('train_transcriber')
 
 @ex.config
 def config():
-    logdir = 'runs/transcriber-' + datetime.now().strftime('%y%m%d-%H%M%S') # ckpts and midi will be saved here
+    # ckpts and midi will be saved here
+    logdir = 'runs/transcriber-' + datetime.now().strftime('%y%m%d-%H%M%S')
     transcriber_ckpt = 'ckpts/model_512.pt'
-    multi_ckpt = False # Flag if the ckpt was trained on pitch only or instrument-sensitive. The provided checkpoints were trained on pitch only.
+    # Flag if the ckpt was trained on pitch only or instrument-sensitive. The provided checkpoints were trained on pitch only.
+    multi_ckpt = False
 
     # transcriber_ckpt = 'ckpts/'
     # multi_ckpt = True
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    checkpoint_interval = 6 # how often to save checkpoint
+    checkpoint_interval = 6  # how often to save checkpoint
     batch_size = 8
-    sequence_length = SEQ_LEN #if HOP_LENGTH == 512 else 3 * SEQ_LEN // 4
+    # HOP_LENGTH = 512 if '512' in transcriber_ckpt else 256
+    sequence_length = SEQ_LEN  # if HOP_LENGTH == 512 else 3 * SEQ_LEN // 4
 
-    iterations = 1000 # per epoch
+    iterations = 1000  # per epoch
     learning_rate = 0.0001
     learning_rate_decay_steps = 10000
-    clip_gradient_norm = False #3
+    clip_gradient_norm = False  # 3
     epochs = 15
 
     ex.observers.append(FileStorageObserver.create(logdir))
@@ -52,37 +55,45 @@ def train(logdir, device, iterations, checkpoint_interval, batch_size, sequence_
 
     print_config(ex.current_run)
     os.makedirs(logdir, exist_ok=True)
-    train_data_path = '/disk4/ben/UnalignedSupervision/NoteEM_audio'
-    labels_path = '/disk4/ben/UnalignedSupervision/NoteEm_labels'
+    train_data_path = 'NoteEM_audio'  # '/disk4/ben/UnalignedSupervision/NoteEM_audio'
+    labels_path = 'NoteEM_tsv'  # '/disk4/ben/UnalignedSupervision/NoteEm_labels'
     # labels_path = '/disk4/ben/UnalignedSupervision/NoteEm_512_labels'
 
     os.makedirs(labels_path, exist_ok=True)
 
-    train_groups = ['Bach Brandenburg Concerto 1 A']
+    train_groups = ['MusicNetSamples']  # ['Bach Brandenburg Concerto 1 A']
 
     conversion_map = None
     instrument_map = None
     dataset = EMDATASET(audio_path=train_data_path,
-                           labels_path=labels_path,
-                           groups=train_groups,
-                            sequence_length=sequence_length,
-                            seed=42,
-                           device=DEFAULT_DEVICE,
-                            instrument_map=instrument_map,
-                            conversion_map=conversion_map
+                        labels_path=labels_path,
+                        groups=train_groups,
+                        sequence_length=sequence_length,
+                        seed=42,
+                        device=DEFAULT_DEVICE,
+                        instrument_map=instrument_map,
+                        conversion_map=conversion_map
                         )
+    print(dataset.groups)
+    print(dataset.file_list)
     print('len dataset', len(dataset), len(dataset.data))
 
     #####
     if not multi_ckpt:
         model_complexity = 64 if '512' in transcriber_ckpt else 48
-        saved_transcriber = torch.load(transcriber_ckpt).cpu()
+        if device == 'cuda':
+            saved_transcriber = torch.load(transcriber_ckpt).cpu()
+        else:
+            saved_transcriber = torch.load(
+                transcriber_ckpt, map_location=torch.device('cpu')).to(device)
         # We create a new transcriber with N_KEYS classes for each instrument:
         transcriber = OnsetsAndFrames(N_MELS, (MAX_MIDI - MIN_MIDI + 1),
-                                              model_complexity,
-                                    onset_complexity=1., n_instruments=len(dataset.instruments) + 1).to(device)
+                                      model_complexity,
+                                      onset_complexity=1., n_instruments=len(dataset.instruments) + 1).to(device)
         # We load weights from the saved pitch-only checkkpoint and duplicate the final layer as an initialization:
-        load_weights(transcriber, saved_transcriber, n_instruments=len(dataset.instruments) + 1)
+        print('!! number of instruments:', len(dataset.instruments))
+        load_weights(transcriber, saved_transcriber,
+                     n_instruments=len(dataset.instruments) + 1)
     else:
         # The checkpoint is already instrument-sensitive
         transcriber = torch.load(transcriber_ckpt).to(device)
@@ -95,29 +106,35 @@ def train(logdir, device, iterations, checkpoint_interval, batch_size, sequence_
     set_diff(transcriber.velocity_stack, False)
 
     parallel_transcriber = DataParallel(transcriber)
-    optimizer = torch.optim.Adam(list(transcriber.parameters()), lr=learning_rate, weight_decay=1e-5)
+    optimizer = torch.optim.Adam(
+        list(transcriber.parameters()), lr=learning_rate, weight_decay=1e-5)
     transcriber.zero_grad()
     optimizer.zero_grad()
     # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min')
     for epoch in range(1, epochs + 1):
         if epoch == 1:
-            ghost = torch.ones((100, 100), dtype=float).to('cuda:1') # occupy another gpu until transcriber training begins
+            # occupy another gpu until transcriber training begins
+            ghost = torch.ones((100, 100), dtype=float).to(device)
+            # ghost = torch.ones((100, 100), dtype=float).to('cuda:1') # occupy another gpu until transcriber training begins
         print('epoch', epoch)
         if epoch > 1:
             del loader
             del batch
         torch.cuda.empty_cache()
 
-        POS = 1.1 # Pseudo-label positive threshold (value > 1 means no pseudo label).
-        NEG = -0.1 # Pseudo-label negative threshold (value < 0 means no pseudo label).
+        # Pseudo-label positive threshold (value > 1 means no pseudo label).
+        POS = 1.1
+        # Pseudo-label negative threshold (value < 0 means no pseudo label).
+        NEG = -0.1
         with torch.no_grad():
             dataset.update_pts(parallel_transcriber,
                                POS=POS,
                                NEG=NEG,
-                               to_save=logdir + '/alignments', # MIDI alignments and predictions will be saved here
+                               # MIDI alignments and predictions will be saved here
+                               to_save=logdir + '/alignments',
                                first=epoch == 1,
                                update=True,
-                               BEST_BON=epoch > 5 # after 5 epochs, update label only if bag of notes distance improved
+                               BEST_BON=epoch > 5  # after 5 epochs, update label only if bag of notes distance improved
                                )
         loader = DataLoader(dataset, batch_size, shuffle=True, drop_last=True)
 
@@ -150,10 +167,13 @@ def train(logdir, device, iterations, checkpoint_interval, batch_size, sequence_
             onset_total_p += batch['onset'].detach()
 
             onset_recall = (onset_total_tp.sum() / onset_total_p.sum()).item()
-            onset_precision = (onset_total_tp.sum() / onset_total_pp.sum()).item()
+            onset_precision = (onset_total_tp.sum() /
+                               onset_total_pp.sum()).item()
 
-            pitch_onset_recall = (onset_total_tp[..., -N_KEYS:].sum() / onset_total_p[..., -N_KEYS:].sum()).item()
-            pitch_onset_precision = (onset_total_tp[..., -N_KEYS:].sum() / onset_total_pp[..., -N_KEYS:].sum()).item()
+            pitch_onset_recall = (
+                onset_total_tp[..., -N_KEYS:].sum() / onset_total_p[..., -N_KEYS:].sum()).item()
+            pitch_onset_precision = (
+                onset_total_tp[..., -N_KEYS:].sum() / onset_total_pp[..., -N_KEYS:].sum()).item()
 
             transcription_loss = sum(transcription_losses.values())
             loss = transcription_loss
@@ -165,13 +185,13 @@ def train(logdir, device, iterations, checkpoint_interval, batch_size, sequence_
             optimizer.step()
             total_loss.append(loss.item())
             print('loss:', sum(total_loss) / len(total_loss), 'Onset Precision:', onset_precision, 'Onset Recall', onset_recall,
-                                                            'Pitch Onset Precision:', pitch_onset_precision, 'Pitch Onset Recall', pitch_onset_recall)
+                  'Pitch Onset Precision:', pitch_onset_precision, 'Pitch Onset Recall', pitch_onset_recall)
 
         save_condition = epoch % checkpoint_interval == 1
         if save_condition:
-            torch.save(transcriber, os.path.join(logdir, 'transcriber_{}.pt'.format(epoch)))
-            torch.save(optimizer.state_dict(), os.path.join(logdir, 'last-optimizer-state.pt'))
+            torch.save(transcriber, os.path.join(
+                logdir, 'transcriber_{}.pt'.format(epoch)))
+            torch.save(optimizer.state_dict(), os.path.join(
+                logdir, 'last-optimizer-state.pt'))
             torch.save({'instrument_mapping': dataset.instruments},
                        os.path.join(logdir, 'instrument_mapping.pt'.format(epoch)))
-
-

@@ -4,10 +4,11 @@ Create pitch shifted copies of the performance, from -5 to 5 semitones (11 copie
 
 
 import os
-import librosa
-import soundfile as sf
+# not needed imports
+# import librosa
+# import soundfile as sf
+# import numpy as np
 from glob import glob
-import numpy as np
 
 
 # src_dir = '/path/to/performance'
@@ -33,14 +34,19 @@ for f in audio_src_files:
         raise e
     for shift in range(-5, 6):
         print(shift)
-        os.makedirs(target_root + '/' + piece + '#' + str(shift), exist_ok=True)
+        os.makedirs(target_root + '/' + piece +
+                    '#' + str(shift), exist_ok=True)
         suffix = part[-len(file_type):]
         assert suffix == file_type
-        f_target1 = target_root + '/' + piece + '#' + str(shift) + '/' + part.replace(file_type, '#{}.flac'.format(shift))
-        f_target2 = target_root + '/' + piece + '#' + str(shift) + '/' + part[: -len(file_type)] + '#{}.flac'.format(shift)
+        f_target1 = target_root + '/' + piece + '#' + \
+            str(shift) + '/' + part.replace(file_type, '#{}.flac'.format(shift))
+        f_target2 = target_root + '/' + piece + '#' + \
+            str(shift) + '/' + part[: -len(file_type)
+                                    ] + '#{}.flac'.format(shift)
         assert f_target1 == f_target2
         f_target = f_target1
-        command = 'sox \"' + f + '\" -r 16000 \"' + f_target + '\" pitch {}'.format(100 * shift)
+        command = 'sox \"' + f + '\" -r 16000 \"' + \
+            f_target + '\" pitch {}'.format(100 * shift)
 
         # if you want to add a small shift (<= 0.1 semitone) use this command instead:
         # small_shift = np.random.randint(-10, 11)

@@ -60,18 +60,23 @@ class EMDATASET(Dataset):
         # good_ids += list(range(2415, 2418))
         # good_ids += list(range(2504, 2508))
         for group in groups:
+            print('GROUP', group)
             tsvs = os.listdir(tsvs_path + '/' + group)
             tsvs = sorted(tsvs)
+            print('tsvs sorted', tsvs)
             for shft in range(-5, 6):
                 curr_fls_pth = self.path + '/' + group + '#{}'.format(shft)
+                print('curr_fls_pth', curr_fls_pth)
                 fls = os.listdir(curr_fls_pth)
                 fls = sorted(fls)
+                print('fls', fls, len(fls))
                 for f, t in zip(fls, tsvs):
                     # #### MusicNet
-                    if 'MusicNet' in group:
-                        if all([str(elem) not in f for elem in good_ids]):
-                            continue
-                    res.append((curr_fls_pth + '/' + f, tsvs_path + '/' + group + '/' + t))
+                    # if 'MusicNet' in group:
+                    #     if all([str(elem) not in f for elem in good_ids]):
+                    #         continue
+                    res.append((curr_fls_pth + '/' + f,
+                               tsvs_path + '/' + group + '/' + t))
         return res
 
     def get_instruments(self):
@@ -88,7 +93,8 @@ class EMDATASET(Dataset):
             instruments.pop(piano_ind)
             instruments.insert(0, 0)
         self.instruments = instruments
-        self.instruments = list(set(self.instruments) - set(range(88, 104)) - set(range(112, 150)))
+        self.instruments = list(
+            set(self.instruments) - set(range(88, 104)) - set(range(112, 150)))
         print('Dataset instruments:', self.instruments)
         print('Total:', len(self.instruments), 'instruments')
 
@@ -112,12 +118,14 @@ class EMDATASET(Dataset):
         end = begin + self.sequence_length
         result['audio'] = data['audio'][begin:end]
         diff = self.sequence_length - len(result['audio'])
-        result['audio'] = torch.cat((result['audio'], torch.zeros(diff, dtype=result['audio'].dtype)))
+        result['audio'] = torch.cat(
+            (result['audio'], torch.zeros(diff, dtype=result['audio'].dtype)))
         result['audio'] = result['audio'].to(self.device)
         result['label'] = data['label'][step_begin:step_end, ...]
         result['label'] = result['label'].to(self.device)
         if 'velocity' in data:
-            result['velocity'] = data['velocity'][step_begin:step_end, ...].to(self.device)
+            result['velocity'] = data['velocity'][step_begin:step_end, ...].to(
+                self.device)
             result['velocity'] = result['velocity'].float() / 128.
 
         result['audio'] = result['audio'].float()
@@ -127,10 +135,11 @@ class EMDATASET(Dataset):
         result['frame'] = (result['label'] > 1).float()
 
         if 'onset_mask' in data:
-            result['onset_mask'] = data['onset_mask'][step_begin:step_end, ...].to(self.device).float()
+            result['onset_mask'] = data['onset_mask'][step_begin:step_end, ...].to(
+                self.device).float()
         if 'frame_mask' in data:
-            result['frame_mask'] = data['frame_mask'][step_begin:step_end, ...].to(self.device).float()
-
+            result['frame_mask'] = data['frame_mask'][step_begin:step_end, ...].to(
+                self.device).float()
 
         shape = result['frame'].shape
         keys = N_KEYS
@@ -172,11 +181,14 @@ class EMDATASET(Dataset):
             res['path'] = audio_path
             res['audio'] = data['audio']
             if 'velocity' in self.pts[orig]:
-                res['velocity'] = shift_label(self.pts[orig]['velocity'], int(shift))
+                res['velocity'] = shift_label(
+                    self.pts[orig]['velocity'], int(shift))
             if 'onset_mask' in self.pts[orig]:
-                res['onset_mask'] = shift_label(self.pts[orig]['onset_mask'], int(shift))
+                res['onset_mask'] = shift_label(
+                    self.pts[orig]['onset_mask'], int(shift))
             if 'frame_mask' in self.pts[orig]:
-                res['frame_mask'] = shift_label(self.pts[orig]['frame_mask'], int(shift))
+                res['frame_mask'] = shift_label(
+                    self.pts[orig]['frame_mask'], int(shift))
             return res
 
     def load_pts(self, files):
@@ -187,7 +199,7 @@ class EMDATASET(Dataset):
             if os.path.isfile(self.labels_path + '/' +
                               flac.split('/')[-1].replace('.flac', '.pt')):
                 self.pts[flac] = torch.load(self.labels_path + '/' +
-                              flac.split('/')[-1].replace('.flac', '.pt'))
+                                            flac.split('/')[-1].replace('.flac', '.pt'))
             else:
                 if flac.count('#') != 2:
                     print('two #', flac)
@@ -209,11 +221,12 @@ class EMDATASET(Dataset):
                                .replace('.flac', '.pt').replace('.mp3', '.pt'))
                     continue
                 midi = np.loadtxt(tsv, delimiter='\t', skiprows=1)
-                unaligned_label = midi_to_frames(midi, self.instruments, conversion_map=self.conversion_map)
+                unaligned_label = midi_to_frames(
+                    midi, self.instruments, conversion_map=self.conversion_map)
                 data = dict(path=self.labels_path + '/' + flac.split('/')[-1],
                             audio=audio, unaligned_label=unaligned_label)
                 torch.save(data, self.labels_path + '/' + flac.split('/')[-1]
-                               .replace('.flac', '.pt').replace('.mp3', '.pt'))
+                           .replace('.flac', '.pt').replace('.mp3', '.pt'))
                 self.pts[flac] = data
 
     '''
@@ -225,6 +238,7 @@ class EMDATASET(Dataset):
     BEST_BON - if true, will update labels only if the bag of notes distance between the unaligned midi and the prediction improved.
     Bag of notes distance is computed based on pitch only.
     '''
+
     def update_pts(self, transcriber, POS=1.1, NEG=-0.001, FRAME_POS=0.5,
                    to_save=None, first=False, update=True, BEST_BON=False):
         print('Updating pts...')
@@ -247,9 +261,16 @@ class EMDATASET(Dataset):
                 frame_preds = []
                 vel_preds = []
                 for i_s in range(n_segments):
-                    curr = audio_inp[i_s * seg_len: (i_s + 1) * seg_len].unsqueeze(0).cuda()
-                    curr_mel = melspectrogram(curr.reshape(-1, curr.shape[-1])[:, :-1]).transpose(-1, -2)
-                    curr_onset_pred, curr_offset_pred, _, curr_frame_pred, curr_velocity_pred = transcriber(curr_mel)
+                    if torch.cuda.is_available():
+                        curr = audio_inp[i_s *
+                                         seg_len: (i_s + 1) * seg_len].unsqueeze(0).cuda()
+                    else:
+                        curr = audio_inp[i_s *
+                                         seg_len: (i_s + 1) * seg_len].unsqueeze(0)
+                    curr_mel = melspectrogram(
+                        curr.reshape(-1, curr.shape[-1])[:, :-1]).transpose(-1, -2)
+                    curr_onset_pred, curr_offset_pred, _, curr_frame_pred, curr_velocity_pred = transcriber(
+                        curr_mel)
                     onsets_preds.append(curr_onset_pred)
                     offset_preds.append(curr_offset_pred)
                     frame_preds.append(curr_frame_pred)
@@ -260,8 +281,10 @@ class EMDATASET(Dataset):
                 velocity_pred = torch.cat(vel_preds, dim=1)
             else:
                 audio_inp = audio_inp.unsqueeze(0).cuda()
-                mel = melspectrogram(audio_inp.reshape(-1, audio_inp.shape[-1])[:, :-1]).transpose(-1, -2)
-                onset_pred, offset_pred, _, frame_pred, velocity_pred = transcriber(mel)
+                mel = melspectrogram(
+                    audio_inp.reshape(-1, audio_inp.shape[-1])[:, :-1]).transpose(-1, -2)
+                onset_pred, offset_pred, _, frame_pred, velocity_pred = transcriber(
+                    mel)
             print('done predicting.')
             # We assume onset predictions are of length N_KEYS * (len(instruments) + 1),
             # first N_KEYS classes are the first instrument, next N_KEYS classes are the next instrument, etc.,
@@ -270,7 +293,8 @@ class EMDATASET(Dataset):
             onset_pred = onset_pred.detach().squeeze().cpu()
             frame_pred = frame_pred.detach().squeeze().cpu()
 
-            peaks = get_peaks(onset_pred, 3) # we only want local peaks, in a 7-frame neighborhood, 3 to each side.
+            # we only want local peaks, in a 7-frame neighborhood, 3 to each side.
+            peaks = get_peaks(onset_pred, 3)
             onset_pred[~peaks] = 0
 
             unaligned_onsets = (data['unaligned_label'] == 3).float().numpy()
@@ -281,8 +305,10 @@ class EMDATASET(Dataset):
 
             ####
             pred_bag_of_notes = (onset_pred_np[:, -N_KEYS:] >= 0.5).sum(axis=0)
-            gt_bag_of_notes = unaligned_onsets[:, -N_KEYS:].astype(bool).sum(axis=0)
-            bon_dist = (((pred_bag_of_notes - gt_bag_of_notes) ** 2).sum()) ** 0.5
+            gt_bag_of_notes = unaligned_onsets[:, -
+                                               N_KEYS:].astype(bool).sum(axis=0)
+            bon_dist = (
+                ((pred_bag_of_notes - gt_bag_of_notes) ** 2).sum()) ** 0.5
             # print('pred bag of notes', pred_bag_of_notes)
             # print('gt bag of notes', gt_bag_of_notes)
             bon_dist /= gt_bag_of_notes.sum()
@@ -290,8 +316,10 @@ class EMDATASET(Dataset):
             ####
 
             # We align based on likelihoods regardless of the octave (chroma features)
-            onset_pred_comp = compress_across_octave(onset_pred_np[:, -N_KEYS:])
-            onset_label_comp = compress_across_octave(unaligned_onsets[:, -N_KEYS:])
+            onset_pred_comp = compress_across_octave(
+                onset_pred_np[:, -N_KEYS:])
+            onset_label_comp = compress_across_octave(
+                unaligned_onsets[:, -N_KEYS:])
             # We can do DTW on super-frames since anyway we search for local max afterwards
             onset_pred_comp = compress_time(onset_pred_comp, DTW_FACTOR)
             onset_label_comp = compress_time(onset_label_comp, DTW_FACTOR)
@@ -302,7 +330,8 @@ class EMDATASET(Dataset):
             finish_time = time.time()
             print('DTW took {} seconds.'.format(finish_time - init_time))
             index1, index2 = alignment.index1, alignment.index2
-            matches1, matches2 = get_matches(index1, index2), get_matches(index2, index1)
+            matches1, matches2 = get_matches(
+                index1, index2), get_matches(index2, index1)
 
             aligned_onsets = np.zeros(onset_pred_np.shape, dtype=bool)
             aligned_frames = np.zeros(onset_pred_np.shape, dtype=bool)
@@ -313,60 +342,72 @@ class EMDATASET(Dataset):
             for t, f in zip(*unaligned_onsets.nonzero()):
                 t_comp = t // DTW_FACTOR
                 t_src = matches2[t_comp]
-                t_sources = list(range(DTW_FACTOR * min(t_src), DTW_FACTOR * max(t_src) + 1))
+                t_sources = list(range(DTW_FACTOR * min(t_src),
+                                 DTW_FACTOR * max(t_src) + 1))
                 # we extend the search area of local max to be ~0.5 second:
                 t_sources_extended = get_margin(t_sources, len(aligned_onsets))
                 # eliminate occupied positions. Allow only a single onset per 5 frames:
-                existing_eliminated = [t_source for t_source in t_sources_extended if (aligned_onsets[t_source - 2: t_source + 3, f] == 0).all()]
+                existing_eliminated = [t_source for t_source in t_sources_extended if (
+                    aligned_onsets[t_source - 2: t_source + 3, f] == 0).all()]
                 if len(existing_eliminated) > 0:
                     t_sources_extended = existing_eliminated
 
-                t_src = max(t_sources_extended, key=lambda x: onset_pred_np[x, f]) # t_src is the most likely time in the local neighborhood for this note onset
+                # t_src is the most likely time in the local neighborhood for this note onset
+                t_src = max(t_sources_extended,
+                            key=lambda x: onset_pred_np[x, f])
                 f_pitch = (len(self.instruments) * N_KEYS) + (f % N_KEYS)
-                if onset_pred_np[t_src, f_pitch] < NEG: # filter negative according to pitch-only likelihood (can use f instead)
+                # filter negative according to pitch-only likelihood (can use f instead)
+                if onset_pred_np[t_src, f_pitch] < NEG:
                     continue
-                aligned_onsets[t_src, f] = 1 # set the label
+                aligned_onsets[t_src, f] = 1  # set the label
 
                 # Now we need to decide note duration and offset time. Find note length in unaligned midi:
                 t_off = t
                 while t_off < len(unaligned_frames) and unaligned_frames[t_off, f]:
                     t_off += 1
-                note_len = t_off - t # this is the note length in the unaligned midi. We need note length in the audio.
+                # this is the note length in the unaligned midi. We need note length in the audio.
+                note_len = t_off - t
 
                 # option 1: use mapping, traverse note length in the unaligned midi, and then use the reverse mapping:
                 try:
-                    t_off_src1 = max(matches2[(DTW_FACTOR * max(matches1[t_src // DTW_FACTOR]) + note_len) // DTW_FACTOR]) * DTW_FACTOR
+                    t_off_src1 = max(matches2[(
+                        DTW_FACTOR * max(matches1[t_src // DTW_FACTOR]) + note_len) // DTW_FACTOR]) * DTW_FACTOR
                     t_off_src1 = max(t_src + 1, t_off_src1)
                 except Exception as e:
                     t_off_src1 = len(aligned_offsets)
                 # option 2: use relative note length
-                t_off_src2 = t_src + int(note_len * (len(aligned_onsets) / len(unaligned_onsets)))
+                t_off_src2 = t_src + \
+                    int(note_len * (len(aligned_onsets) / len(unaligned_onsets)))
                 t_off_src2 = min(len(aligned_onsets), t_off_src2)
 
-                t_off_src = t_off_src2 # we choose option 2
+                t_off_src = t_off_src2  # we choose option 2
                 aligned_frames[t_src: t_off_src, f] = 1
 
                 if t_off_src < len(aligned_offsets):
                     aligned_offsets[t_off_src, f] = 1
 
             # eliminate instruments that do not exist in the unaligned midi
-            inactive_instruments, active_instruments_list = get_inactive_instruments(unaligned_onsets, len(aligned_onsets))
+            inactive_instruments, active_instruments_list = get_inactive_instruments(
+                unaligned_onsets, len(aligned_onsets))
             onset_pred_np[inactive_instruments] = 0
 
             pseudo_onsets = (onset_pred_np >= POS) & (~aligned_onsets)
             inst_only = len(self.instruments) * N_KEYS
-            if first: # do not use pseudo labels for instruments in first labelling iteration since the model doesn't distinguish yet
+            if first:  # do not use pseudo labels for instruments in first labelling iteration since the model doesn't distinguish yet
                 pseudo_onsets[:, : inst_only] = 0
             onset_label = np.maximum(pseudo_onsets, aligned_onsets)
 
-            onsets_unknown = (onset_pred_np >= 0.5) & (~onset_label) # for mask
-            if first: # do not use mask for instruments in first labelling iteration since the model doesn't distinguish yet between instruments
+            onsets_unknown = (onset_pred_np >= 0.5) & (
+                ~onset_label)  # for mask
+            if first:  # do not use mask for instruments in first labelling iteration since the model doesn't distinguish yet between instruments
                 onsets_unknown[:, : inst_only] = 0
             onset_mask = torch.from_numpy(~onsets_unknown).byte()
             # onset_mask = torch.ones(onset_label.shape).byte()
 
-            pseudo_frames = np.zeros(pseudo_onsets.shape, dtype=pseudo_onsets.dtype)
-            pseudo_offsets = np.zeros(pseudo_onsets.shape, dtype=pseudo_onsets.dtype)
+            pseudo_frames = np.zeros(
+                pseudo_onsets.shape, dtype=pseudo_onsets.dtype)
+            pseudo_offsets = np.zeros(
+                pseudo_onsets.shape, dtype=pseudo_onsets.dtype)
             for t, f in zip(*onset_label.nonzero()):
                 t_off = t
                 while t_off < len(pseudo_frames) and frame_pred[t_off, f % N_KEYS] >= FRAME_POS:
@@ -387,8 +428,8 @@ class EMDATASET(Dataset):
 
             if to_save is not None:
                 save_midi_alignments_and_predictions(to_save, data['path'], self.instruments,
-                                         aligned_onsets, aligned_frames,
-                                         onset_pred_np, frame_pred_np, prefix='')
+                                                     aligned_onsets, aligned_frames,
+                                                     onset_pred_np, frame_pred_np, prefix='')
                 # time_now = datetime.now().strftime('%y%m%d-%H%M%S')
                 # frames2midi(to_save + '/' + data['path'].replace('.flac', '').split('/')[-1] + '_alignment_' + time_now + '.mid',
                 #             aligned_onsets[:, : inst_only], aligned_frames[:, : inst_only],
@@ -418,7 +459,8 @@ class EMDATASET(Dataset):
                     data['onset_mask'] = onset_mask
                     data['frame_mask'] = frame_mask
                 if bon_dist < data.get('BON', float('inf')):
-                    print('Bag of notes distance improved from {} to {}'.format(data.get('BON', float('inf')), bon_dist))
+                    print('Bag of notes distance improved from {} to {}'.format(
+                        data.get('BON', float('inf')), bon_dist))
                     data['BON'] = bon_dist
 
                     if to_save is not None:
@@ -452,7 +494,7 @@ class EMDATASET(Dataset):
     '''
 
     def update_pts_vanilla(self, transcriber,
-                   to_save=None, first=False, update=True):
+                           to_save=None, first=False, update=True):
         print('Updating pts...')
         if to_save is not None:
             os.makedirs(to_save, exist_ok=True)
@@ -472,9 +514,12 @@ class EMDATASET(Dataset):
                 frame_preds = []
                 vel_preds = []
                 for i_s in range(n_segments):
-                    curr = audio_inp[i_s * seg_len: (i_s + 1) * seg_len].unsqueeze(0).cuda()
-                    curr_mel = melspectrogram(curr.reshape(-1, curr.shape[-1])[:, :-1]).transpose(-1, -2)
-                    curr_onset_pred, curr_offset_pred, _, curr_frame_pred, curr_velocity_pred = transcriber(curr_mel)
+                    curr = audio_inp[i_s *
+                                     seg_len: (i_s + 1) * seg_len].unsqueeze(0).cuda()
+                    curr_mel = melspectrogram(
+                        curr.reshape(-1, curr.shape[-1])[:, :-1]).transpose(-1, -2)
+                    curr_onset_pred, curr_offset_pred, _, curr_frame_pred, curr_velocity_pred = transcriber(
+                        curr_mel)
                     onsets_preds.append(curr_onset_pred)
                     offset_preds.append(curr_offset_pred)
                     frame_preds.append(curr_frame_pred)
@@ -485,8 +530,10 @@ class EMDATASET(Dataset):
                 velocity_pred = torch.cat(vel_preds, dim=1)
             else:
                 audio_inp = audio_inp.unsqueeze(0).cuda()
-                mel = melspectrogram(audio_inp.reshape(-1, audio_inp.shape[-1])[:, :-1]).transpose(-1, -2)
-                onset_pred, offset_pred, _, frame_pred, velocity_pred = transcriber(mel)
+                mel = melspectrogram(
+                    audio_inp.reshape(-1, audio_inp.shape[-1])[:, :-1]).transpose(-1, -2)
+                onset_pred, offset_pred, _, frame_pred, velocity_pred = transcriber(
+                    mel)
             print('done predicting.')
             # We assume onset predictions are of length N_KEYS * (len(instruments) + 1),
             # first N_KEYS classes are the first instrument, next N_KEYS classes are the next instrument, etc.,
@@ -495,7 +542,8 @@ class EMDATASET(Dataset):
             onset_pred = onset_pred.detach().squeeze().cpu()
             frame_pred = frame_pred.detach().squeeze().cpu()
 
-            peaks = get_peaks(onset_pred, 3)  # we only want local peaks, in a 7-frame neighborhood, 3 to each side.
+            # we only want local peaks, in a 7-frame neighborhood, 3 to each side.
+            peaks = get_peaks(onset_pred, 3)
             onset_pred[~peaks] = 0
 
             unaligned_onsets = (data['unaligned_label'] == 3).float().numpy()
@@ -505,8 +553,10 @@ class EMDATASET(Dataset):
             frame_pred_np = frame_pred.numpy()
 
             # We align based on likelihoods regardless of the octave (chroma features)
-            onset_pred_comp = compress_across_octave(onset_pred_np[:, -N_KEYS:])
-            onset_label_comp = compress_across_octave(unaligned_onsets[:, -N_KEYS:])
+            onset_pred_comp = compress_across_octave(
+                onset_pred_np[:, -N_KEYS:])
+            onset_label_comp = compress_across_octave(
+                unaligned_onsets[:, -N_KEYS:])
             # We can do DTW on super-frames since anyway we search for local max afterwards
             onset_pred_comp = compress_time(onset_pred_comp, DTW_FACTOR)
             onset_label_comp = compress_time(onset_label_comp, DTW_FACTOR)
@@ -517,7 +567,8 @@ class EMDATASET(Dataset):
             finish_time = time.time()
             print('DTW took {} seconds.'.format(finish_time - init_time))
             index1, index2 = alignment.index1, alignment.index2
-            matches1, matches2 = get_matches(index1, index2), get_matches(index2, index1)
+            matches1, matches2 = get_matches(
+                index1, index2), get_matches(index2, index1)
 
             aligned_onsets = np.zeros(onset_pred_np.shape, dtype=bool)
             aligned_frames = np.zeros(onset_pred_np.shape, dtype=bool)
@@ -528,31 +579,38 @@ class EMDATASET(Dataset):
             for t, f in zip(*unaligned_onsets.nonzero()):
                 t_comp = t // DTW_FACTOR
                 t_src = matches2[t_comp]
-                t_sources = list(range(DTW_FACTOR * min(t_src), DTW_FACTOR * max(t_src) + 1))
+                t_sources = list(range(DTW_FACTOR * min(t_src),
+                                 DTW_FACTOR * max(t_src) + 1))
                 # we extend the search area of local max to be ~0.5 second:
                 t_sources_extended = get_margin(t_sources, len(aligned_onsets))
                 # eliminate occupied positions. Allow only a single onset per 5 frames:
-                existing_eliminated = [t_source for t_source in t_sources_extended if (aligned_onsets[t_source - 2: t_source + 3, f] == 0).all()]
+                existing_eliminated = [t_source for t_source in t_sources_extended if (
+                    aligned_onsets[t_source - 2: t_source + 3, f] == 0).all()]
                 if len(existing_eliminated) > 0:
                     t_sources_extended = existing_eliminated
 
-                t_src = max(t_sources_extended, key=lambda x: onset_pred_np[x, f])  # t_src is the most likely time in the local neighborhood for this note onset
+                # t_src is the most likely time in the local neighborhood for this note onset
+                t_src = max(t_sources_extended,
+                            key=lambda x: onset_pred_np[x, f])
                 f_pitch = (len(self.instruments) * N_KEYS) + (f % N_KEYS)
                 aligned_onsets[t_src, f] = 1  # set the label
                 # Now we need to decide note duration and offset time. Find note length in unaligned midi:
                 t_off = t
                 while t_off < len(unaligned_frames) and unaligned_frames[t_off, f]:
                     t_off += 1
-                note_len = t_off - t  # this is the note length in the unaligned midi. We need note length in the audio.
+                # this is the note length in the unaligned midi. We need note length in the audio.
+                note_len = t_off - t
 
                 # option 1: use mapping, traverse note length in the unaligned midi, and then use the reverse mapping:
                 try:
-                    t_off_src1 = max(matches2[(DTW_FACTOR * max(matches1[t_src // DTW_FACTOR]) + note_len) // DTW_FACTOR]) * DTW_FACTOR
+                    t_off_src1 = max(matches2[(
+                        DTW_FACTOR * max(matches1[t_src // DTW_FACTOR]) + note_len) // DTW_FACTOR]) * DTW_FACTOR
                     t_off_src1 = max(t_src + 1, t_off_src1)
                 except Exception as e:
                     t_off_src1 = len(aligned_offsets)
                 # option 2: use relative note length
-                t_off_src2 = t_src + int(note_len * (len(aligned_onsets) / len(unaligned_onsets)))
+                t_off_src2 = t_src + \
+                    int(note_len * (len(aligned_onsets) / len(unaligned_onsets)))
                 t_off_src2 = min(len(aligned_onsets), t_off_src2)
 
                 t_off_src = t_off_src2  # we choose option 2
@@ -562,7 +620,8 @@ class EMDATASET(Dataset):
                     aligned_offsets[t_off_src, f] = 1
 
             # eliminate instruments that do not exist in the unaligned midi
-            inactive_instruments, active_instruments_list = get_inactive_instruments(unaligned_onsets, len(aligned_onsets))
+            inactive_instruments, active_instruments_list = get_inactive_instruments(
+                unaligned_onsets, len(aligned_onsets))
             onset_pred_np[inactive_instruments] = 0
 
             onset_label = aligned_onsets
@@ -575,25 +634,30 @@ class EMDATASET(Dataset):
                 inst_only = len(self.instruments) * N_KEYS
                 time_now = datetime.now().strftime('%y%m%d-%H%M%S')
                 frames2midi(to_save + '/' + data['path'].replace('.flac', '').split('/')[-1] + '_alignment_' + time_now + '.mid',
-                            aligned_onsets[:, : inst_only], aligned_frames[:, : inst_only],
+                            aligned_onsets[:,
+                                           : inst_only], aligned_frames[:, : inst_only],
                             64. * aligned_onsets[:, : inst_only],
                             inst_mapping=self.instruments)
                 frames2midi_pitch(to_save + '/' + data['path'].replace('.flac', '').split('/')[-1] + '_alignment_pitch_' + time_now + '.mid',
-                                  aligned_onsets[:, -N_KEYS:], aligned_frames[:, -N_KEYS:],
+                                  aligned_onsets[:, -
+                                                 N_KEYS:], aligned_frames[:, -N_KEYS:],
                                   64. * aligned_onsets[:, -N_KEYS:])
                 predicted_onsets = onset_pred_np >= 0.5
                 predicted_frames = frame_pred_np >= 0.5
                 frames2midi(to_save + '/' + data['path'].replace('.flac', '').split('/')[-1] + '_pred_' + time_now + '.mid',
-                            predicted_onsets[:, : inst_only], predicted_frames[:, : inst_only],
+                            predicted_onsets[:,
+                                             : inst_only], predicted_frames[:, : inst_only],
                             64. * predicted_onsets[:, : inst_only],
                             inst_mapping=self.instruments)
                 frames2midi_pitch(to_save + '/' + data['path'].replace('.flac', '').split('/')[-1] + '_pred_pitch_' + time_now + '.mid',
-                                  predicted_onsets[:, -N_KEYS:], predicted_frames[:, -N_KEYS:],
+                                  predicted_onsets[:, -
+                                                   N_KEYS:], predicted_frames[:, -N_KEYS:],
                                   64. * predicted_onsets[:, -N_KEYS:])
                 if len(self.instruments) > 1:
                     max_pred_onsets = max_inst(onset_pred_np)
                     frames2midi(to_save + '/' + data['path'].replace('.flac', '').split('/')[-1] + '_pred_max_' + time_now + '.mid',
-                                max_pred_onsets[:, : inst_only], predicted_frames[:, : inst_only],
+                                max_pred_onsets[:,
+                                                : inst_only], predicted_frames[:, : inst_only],
                                 64. * max_pred_onsets[:, : inst_only],
                                 inst_mapping=self.instruments)
             if update:

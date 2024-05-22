@@ -23,15 +23,17 @@ def midi2tsv_process(midi_path, target_path, shift=0, force_instrument=None):
 # midi_src_pth = '/path/to/midi/perfromance'
 midi_src_pth = 'MusicNetSamples'
 
-target = '/disk4/ben/UnalignedSupervision/NoteEM_tsv'
+target = 'NoteEM_tsv'  # '/disk4/ben/UnalignedSupervision/NoteEM_tsv'
 
 
 FORCE_INSTRUMENT = None
 piece = midi_src_pth.split('/')[-1]
+print(target + '/' + piece)
 os.makedirs(target + '/' + piece, exist_ok=True)
 for f in os.listdir(midi_src_pth):
     if f.endswith('.mid') or f.endswith('.MID'):
         print(f)
         midi2tsv_process(midi_src_pth + '/' + f,
-                         target + '/' + piece + '/' + f.replace('.mid', '.tsv').replace('.MID', '.tsv'),
+                         target + '/' + piece + '/' +
+                         f.replace('.mid', '.tsv').replace('.MID', '.tsv'),
                          force_instrument=FORCE_INSTRUMENT)
