@@ -12,13 +12,17 @@ from glob import glob
 
 
 # src_dir = '/path/to/performance'
-src_dir = 'MusicNetSamples'
+# src_dir = 'MusicNetSamples'
+src_dir = '2_genre'
+
 target_root = 'NoteEM_audio'
+target_root = os.path.join(src_dir, target_root)
 # file_type = '.mp3'
-file_type = '.flac'
-# file_type = '.wav'
+# file_type = '.flac'
+file_type = '.wav'
 
 audio_src_files = glob(src_dir + '/**/*' + file_type, recursive=True)
+print(len(audio_src_files), 'audio_src_files')
 audio_src_files = sorted(audio_src_files)
 
 print('Beginning pitch shift from', src_dir)

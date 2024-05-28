@@ -26,7 +26,9 @@ ex = Experiment('train_transcriber')
 @ex.config
 def config():
     # ckpts and midi will be saved here
-    logdir = 'runs/transcriber-' + datetime.now().strftime('%y%m%d-%H%M%S')
+    # logdir = 'runs/transcriber-' + datetime.now().strftime('%y%m%d-%H%M%S')
+    # logdir = 'runs/1_random_transcriber-' + datetime.now().strftime('%y%m%d-%H%M%S')
+    logdir = 'runs/2_genre_transcriber-' + datetime.now().strftime('%y%m%d-%H%M%S')
     transcriber_ckpt = 'ckpts/model_512.pt'
     # Flag if the ckpt was trained on pitch only or instrument-sensitive. The provided checkpoints were trained on pitch only.
     multi_ckpt = False
@@ -44,7 +46,7 @@ def config():
     learning_rate = 0.0001
     learning_rate_decay_steps = 10000
     clip_gradient_norm = False  # 3
-    epochs = 15
+    epochs = 8 # 15
 
     ex.observers.append(FileStorageObserver.create(logdir))
 
@@ -55,13 +57,12 @@ def train(logdir, device, iterations, checkpoint_interval, batch_size, sequence_
 
     print_config(ex.current_run)
     os.makedirs(logdir, exist_ok=True)
-    train_data_path = 'NoteEM_audio'  # '/disk4/ben/UnalignedSupervision/NoteEM_audio'
-    labels_path = 'NoteEM_tsv'  # '/disk4/ben/UnalignedSupervision/NoteEm_labels'
-    # labels_path = '/disk4/ben/UnalignedSupervision/NoteEm_512_labels'
+    
+    train_groups = ['2_genre']
+    train_data_path = os.path.join(train_groups[0], '_NoteEM_audio')
+    labels_path = os.path.join(train_groups[0], '_NoteEM_tsv')
 
     os.makedirs(labels_path, exist_ok=True)
-
-    train_groups = ['MusicNetSamples']  # ['Bach Brandenburg Concerto 1 A']
 
     conversion_map = None
     instrument_map = None

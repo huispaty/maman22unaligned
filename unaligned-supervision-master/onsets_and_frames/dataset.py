@@ -16,7 +16,9 @@ import time
 class EMDATASET(Dataset):
     def __init__(self,
                  audio_path='NoteEM_audio',
-                 labels_path='NoteEm_labels',
+                 labels_path='NoteEM_labels',
+                #  audio_path='NoteEM_audio',
+                #  labels_path='NoteEm_labels',
                  groups=None, sequence_length=None, seed=42, device=DEFAULT_DEVICE,
                  instrument_map=None, update_instruments=False, transcriber=None,
                  conversion_map=None):
@@ -51,8 +53,8 @@ class EMDATASET(Dataset):
         return len(self.data)
 
     def files(self, groups):
-        self.path = 'NoteEM_audio'
-        tsvs_path = 'NoteEM_tsv'
+        self.path = os.path.join(groups[0], 'NoteEM_audio')
+        tsvs_path = os.path.join(groups[0], 'NoteEM_tsv')
         res = []
         good_ids = list(range(2075, 2084))
         # good_ids += list(range(1817, 1820))
@@ -66,7 +68,7 @@ class EMDATASET(Dataset):
             print('tsvs sorted', tsvs)
             for shft in range(-5, 6):
                 curr_fls_pth = self.path + '/' + group + '#{}'.format(shft)
-                print('curr_fls_pth', curr_fls_pth)
+                print(curr_fls_pth)
                 fls = os.listdir(curr_fls_pth)
                 fls = sorted(fls)
                 print('fls', fls, len(fls))

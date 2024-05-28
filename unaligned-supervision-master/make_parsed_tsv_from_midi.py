@@ -21,9 +21,11 @@ def midi2tsv_process(midi_path, target_path, shift=0, force_instrument=None):
 
 
 # midi_src_pth = '/path/to/midi/perfromance'
-midi_src_pth = 'MusicNetSamples'
+# midi_src_pth = 'MusicNetSamples'
+midi_src_pth = '2_genre'
 
 target = 'NoteEM_tsv'  # '/disk4/ben/UnalignedSupervision/NoteEM_tsv'
+target = os.path.join(midi_src_pth, target)
 
 
 FORCE_INSTRUMENT = None
